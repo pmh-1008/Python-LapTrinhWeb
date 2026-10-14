@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+{% block title %}Thống kê · Sổ lưu bút{% endblock %}
+{% block content %}
+<h1>Thống kê</h1>
+
+<p class="total"><span>{{ total }}</span> lời nhắn đã được ghi lại</p>
+
+{% if top5 %}
+  <h2>5 người gửi nhiều nhất</h2>
+  <ol class="rank">
+    {% for r in top5 %}
+      <li><span>{{ r.name }}</span><b>{{ r.n }} lời nhắn</b></li>
+    {% endfor %}
+  </ol>
+
+  {% if chart_ready %}
+  <img class="chart" src="{{ url_for('static', filename='stats.png') }}?v={{ v }}"
+       alt="Biểu đồ cột số lời nhắn theo người gửi">
+  {% endif %}
+{% else %}
+  <div class="empty">
+    <p>Chưa có dữ liệu để thống kê.</p>
+    <a class="btn" href="{{ url_for('add') }}">Viết lời nhắn đầu tiên</a>
+  </div>
+{% endif %}
+{% endblock %}

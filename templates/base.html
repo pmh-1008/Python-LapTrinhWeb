@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Sổ lưu bút{% endblock %}</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;600;800&family=Patrick+Hand&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header class="top">
+    <a class="brand" href="{{ url_for('index') }}">Sổ lưu bút</a>
+    <nav>
+      <a href="{{ url_for('index') }}">Lời nhắn</a>
+      <a href="{{ url_for('stats') }}">Thống kê</a>
+      <a class="btn" href="{{ url_for('add') }}">Viết lời nhắn</a>
+    </nav>
+  </header>
+
+  <main>
+    {% with msgs = get_flashed_messages() %}
+      {% for m in msgs %}<p class="flash" role="status">{{ m }}</p>{% endfor %}
+    {% endwith %}
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>

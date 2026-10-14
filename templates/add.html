@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Viết lời nhắn · Sổ lưu bút{% endblock %}
+{% block content %}
+<h1>Để lại vài dòng</h1>
+
+{% if errors %}
+<div class="errors" role="alert">
+  <strong>Chưa gửi được:</strong>
+  <ul>{% for e in errors %}<li>{{ e }}</li>{% endfor %}</ul>
+</div>
+{% endif %}
+
+<form class="card" method="post" action="{{ url_for('add') }}" novalidate>
+  <label for="name">Tên của bạn</label>
+  <input id="name" name="name" type="text" maxlength="{{ max_name }}"
+         value="{{ name }}" autocomplete="name" autofocus>
+
+  <label for="message">Lời nhắn</label>
+  <textarea id="message" name="message" rows="5"
+            maxlength="{{ max_message }}">{{ message }}</textarea>
+
+  <div class="actions">
+    <button class="btn" type="submit">Gửi lời nhắn</button>
+    <a href="{{ url_for('index') }}">Quay lại</a>
+  </div>
+</form>
+{% endblock %}
