@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+{% block content %}
+  <section class="stats">
+    <h1>Thống kê</h1>
+    <p class="total"><b>{{ total }}</b> giấy nhớ đã dán</p>
+
+    {% if top5 %}
+      <h2>5 người dán nhiều nhất</h2>
+      <ol>
+        {% for r in top5 %}<li>{{ r.name }}: {{ r.n }} lời nhắn</li>{% endfor %}
+      </ol>
+      <img src="{{ url_for('static', filename='stats.png') }}?n={{ total }}"
+           alt="Biểu đồ cột số lời nhắn theo người gửi">
+    {% else %}
+      <p>Chưa có dữ liệu. <a href="{{ url_for('add') }}">Dán tờ giấy đầu tiên</a>.</p>
+    {% endif %}
+  </section>
+{% endblock %}

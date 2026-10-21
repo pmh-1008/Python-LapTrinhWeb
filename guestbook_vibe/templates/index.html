@@ -1,0 +1,71 @@
+{% extends "base.html" %}
+{% block boardclass %}wall{% endblock %}
+{% block content %}
+  {# Giấy nằm theo thứ tự id: giấy sau nằm trên giấy trước (thứ tự trong HTML = thứ tự xếp chồng) #}
+  {% for e in entries %}
+    <div class="note paper{{ e.color }}" tabindex="0"
+         style="left:{{ e.x|round(1) }}px; top:{{ e.y|round(1) }}px; --r:{{ e.rot|round(1) }}deg"
+         title="Nhấn để xem giấy này">
+      <p class="msg">{{ e.message }}</p>
+      <p class="who">– {{ e.name }}</p>
+      <form method="post" action="{{ url_for('delete', id=e.id, page=cur) }}"
+            onsubmit="return confirm('Xoá giấy nhớ của {{ e.name|e }}?');">
+        <button>Xoá #{{ e.id }}</button>
+      </form>
+    </div>
+  {% else %}
+    <p class="empty">Bảng còn trống. <a href="{{ url_for('add') }}">Dán tờ giấy đầu tiên</a>.</p>
+  {% endfor %}
+{% endblock %}
+
+{% block after %}
+  {% if total_pages > 1 %}
+  <div class="pager"
+       {% if cur > 1 %}data-prev="{{ url_for('index', page=cur-1) }}"{% endif %}
+       {% if cur < total_pages %}data-next="{{ url_for('index', page=cur+1) }}"{% endif %}>
+    {% if cur > 1 %}<a href="{{ url_for('index', page=cur-1) }}">‹ Trước</a>{% else %}<span>‹ Trước</span>{% endif %}
+    <span class="where">Trang {{ cur }} / {{ total_pages }}</span>
+    {% if cur < total_pages %}<a href="{{ url_for('index', page=cur+1) }}">Sau ›</a>{% else %}<span>Sau ›</span>{% endif %}
+  </div>
+  {% endif %}
+
+  <script>
+    var board = document.querySelector(".wall");
+    var frame = board.parentElement;
+    var lifted = null;
+
+    // Nhấn vào giấy: nhấc lên trên cùng (thẳng, to hơn, hiện nút xoá). Nhấn lại để đặt xuống.
+    function toggle(note) {
+      if (lifted && lifted !== note) lifted.classList.remove("lifted");
+      note.classList.toggle("lifted");
+      lifted = note.classList.contains("lifted") ? note : null;
+    }
+    board.addEventListener("click", function (e) {
+      if (e.target.closest("form")) return;           // nút Xoá tự xử lý
+      var note = e.target.closest(".note");
+      if (note) toggle(note);
+      else if (lifted) toggle(lifted);                // nhấn ra ngoài: đặt xuống
+    });
+    board.addEventListener("keydown", function (e) {
+      if ((e.key === "Enter" || e.key === " ") && e.target.classList.contains("note")) {
+        e.preventDefault(); toggle(e.target);
+      }
+    });
+
+    // Thu nhỏ bảng cho vừa màn hình hẹp (tối thiểu 55%, nhỏ hơn thì cuộn ngang)
+    function fit() {
+      var s = Math.max(0.55, Math.min(1, (frame.clientWidth - 28) / {{ board_w }}));
+      board.style.transform = "scale(" + s + ")";
+      frame.style.height = ({{ board_h }} * s + 28) + "px";
+    }
+    window.addEventListener("resize", fit); fit();
+
+    // Phím ← → để lật trang như slide
+    var pg = document.querySelector(".pager");
+    document.addEventListener("keydown", function (e) {
+      if (!pg || /INPUT|TEXTAREA/.test(e.target.tagName)) return;
+      var url = e.key === "ArrowLeft" ? pg.dataset.prev : e.key === "ArrowRight" ? pg.dataset.next : null;
+      if (url) location.href = url;
+    });
+  </script>
+{% endblock %}

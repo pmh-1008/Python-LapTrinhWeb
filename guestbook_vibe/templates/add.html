@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+{% block boardclass %}wall picker{% endblock %}
+
+{% block before_frame %}
+  <form class="panel" id="addform" method="post" action="{{ url_for('add') }}">
+    <h1>Dán giấy nhớ</h1>
+    {% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
+
+    <div class="row">
+      <div>
+        <label for="name">Tên</label>
+        <input id="name" name="name" maxlength="30" value="{{ name }}" autofocus>
+      </div>
+      <div>
+        <label for="page">Dán vào trang</label>
+        <select id="page" name="page" required>
+          <option value="" disabled {{ 'selected' if selected is none }}>– Chọn trang –</option>
+          {% for o in options %}
+            <option value="{{ o.value }}" {{ 'selected' if o.value == selected }}>{{ o.label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+    </div>
+
+    <label for="message">Lời nhắn (tối đa 90 ký tự)</label>
+    <textarea id="message" name="message" rows="3" maxlength="90">{{ message }}</textarea>
+
+    <input type="hidden" name="x" id="x">
+    <input type="hidden" name="y" id="y">
+  </form>
+{% endblock %}
+
+{% block content %}
+  <p class="pick-msg" id="pick-msg">Chọn trang ở phía trên để bắt đầu dán.</p>
+  <div class="note paper0 ghost"><p class="msg"></p><p class="who"></p></div>
+{% endblock %}
+
+{% block after %}
+  <p class="hint" id="hint" role="status"></p>
+  <div class="actions"><a href="{{ url_for('index') }}">Huỷ</a></div>
+
+  <script>
+    var DATA = {{ boards|tojson }};   // giấy đã dán trên từng trang
+    var W = {{ board_w }}, H = {{ board_h }}, N = {{ note }};
+    var form = document.getElementById("addform");
+    var board = document.querySelector(".wall"), frame = board.parentElement;
+    var ghost = board.querySelector(".ghost"), pickMsg = document.getElementById("pick-msg");
+    var sel = document.getElementById("page"), hx = document.getElementById("x"), hy = document.getElementById("y");
+    var hint = document.getElementById("hint");
+    var nameIn = document.getElementById("name"), msgIn = document.getElementById("message");
+    var sending = false;              // đã gửi rồi thì bỏ qua các lần nhấn tiếp theo
+
+    function hasPage() { return sel.value !== ""; }
+    function clamp(v, lo, hi) { return Math.min(Math.max(v, lo), hi); }
+
+    function drawNotes() {
+      board.querySelectorAll(".note:not(.ghost)").forEach(function (n) { n.remove(); });
+      (DATA[sel.value] || []).forEach(function (n) {
+        var d = document.createElement("div");
+        d.className = "note paper" + n.color;
+        d.style.left = n.x + "px"; d.style.top = n.y + "px"; d.style.setProperty("--r", n.rot + "deg");
+        var m = document.createElement("p"); m.className = "msg"; m.textContent = n.message;
+        var w = document.createElement("p"); w.className = "who"; w.textContent = "– " + n.name;
+        d.appendChild(m); d.appendChild(w);
+        board.insertBefore(d, ghost);   // giấy mới ở sau nên nằm trên
+      });
+    }
+    function posAt(e) {      // toạ độ chuột -> góc trên-trái của giấy (giấy nằm giữa con trỏ, trong bảng)
+      var r = board.getBoundingClientRect(), s = r.width / W;
+      return { x: clamp(Math.round((e.clientX - r.left) / s - N / 2), 0, W - N),
+               y: clamp(Math.round((e.clientY - r.top) / s - N / 2), 0, H - N) };
+    }
+    function showGhost(p) {
+      ghost.style.left = p.x + "px"; ghost.style.top = p.y + "px";
+      ghost.querySelector(".msg").textContent = msgIn.value || "Lời nhắn của bạn";
+      ghost.querySelector(".who").textContent = "– " + (nameIn.value || "bạn");
+      ghost.classList.add("show");
+    }
+    function syncPage() {      // gọi khi đổi trang: vẽ lại bảng
+      ghost.classList.remove("show");
+      pickMsg.hidden = hasPage();
+      hint.textContent = hasPage() ? "Nhập tên và lời nhắn, rồi nhấn lên bảng: giấy sẽ được dán ngay vào chỗ đó." : "";
+      drawNotes();
+    }
+
+    board.addEventListener("mousemove", function (e) { if (hasPage() && !sending) showGhost(posAt(e)); });
+    board.addEventListener("mouseleave", function () { ghost.classList.remove("show"); });
+    board.addEventListener("click", function (e) {
+      if (sending) return;
+      if (!hasPage()) { hint.textContent = "Hãy chọn trang trước."; sel.focus(); return; }
+      if (!nameIn.value.trim()) { hint.textContent = "Nhập tên của bạn trước khi dán."; nameIn.focus(); return; }
+      if (!msgIn.value.trim()) { hint.textContent = "Nhập lời nhắn trước khi dán."; msgIn.focus(); return; }
+      var p = posAt(e);
+      hx.value = p.x; hy.value = p.y;
+      showGhost(p); sending = true;
+      hint.textContent = "Đang dán…";
+      if (form.requestSubmit) form.requestSubmit(); else form.submit();   // dán ngay, không cần nút
+    });
+    // Nhấn Enter trong ô tên khi chưa chọn chỗ -> không gửi
+    form.addEventListener("submit", function (e) {
+      if (!hx.value || !hy.value) { e.preventDefault(); hint.textContent = "Nhấn lên bảng để chọn chỗ dán."; }
+    });
+    sel.addEventListener("change", syncPage);
+    [nameIn, msgIn].forEach(function (el) { el.addEventListener("input", function () { ghost.classList.contains("show") && showGhost({ x: parseInt(ghost.style.left), y: parseInt(ghost.style.top) }); }); });
+    window.addEventListener("pageshow", function () { sending = false; });   // quay lại bằng nút Back
+
+    // Thu nhỏ bảng cho vừa màn hình hẹp (tối thiểu 55%, nhỏ hơn thì cuộn ngang)
+    function fit() {
+      var s = Math.max(0.55, Math.min(1, (frame.clientWidth - 28) / W));
+      board.style.transform = "scale(" + s + ")";
+      frame.style.height = (H * s + 28) + "px";
+    }
+    window.addEventListener("resize", fit);
+    fit(); syncPage();
+  </script>
+{% endblock %}

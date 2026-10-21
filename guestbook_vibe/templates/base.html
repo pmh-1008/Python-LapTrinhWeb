@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Bảng giấy nhớ</title>
+  <link href="https://fonts.googleapis.com/css2?family=Patrick+Hand&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <nav>
+    <a href="{{ url_for('index') }}">Bảng giấy nhớ</a>
+    <a href="{{ url_for('add', page=cur) if cur is defined else url_for('add') }}">Dán giấy nhớ</a>
+    <a href="{{ url_for('stats') }}">Thống kê</a>
+  </nav>
+  {% block before_frame %}{% endblock %}
+  <div class="frame">
+    <div class="board {% block boardclass %}{% endblock %}">{% block content %}{% endblock %}</div>
+  </div>
+  {% block after %}{% endblock %}
+</body>
+</html>
