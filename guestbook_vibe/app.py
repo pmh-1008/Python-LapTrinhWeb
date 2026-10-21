@@ -3,7 +3,7 @@ Guestbook giấy nhớ - dán lên bảng đen
 Flask + SQLite (+ data.json) + thống kê Matplotlib
 
 Người dùng tự chọn TRANG và tự nhấn lên bảng để chọn chỗ dán.
-Chạy:  python app.py   ->  http://127.0.0.1:5000
+Chạy:  python app.py   ->  http://127.0.0.1:5001
 """
 import json
 import random
@@ -203,4 +203,4 @@ def stats():
 
 if __name__ == "__main__":
     init_db()
-    app.run(debug=True)
+    app.run(debug=True, port=5001)
