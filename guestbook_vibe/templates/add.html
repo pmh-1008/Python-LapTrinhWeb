@@ -3,6 +3,7 @@
 
 {% block before_frame %}
   <form class="panel" id="addform" method="post" action="{{ url_for('add') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <h1>Dán giấy nhớ</h1>
     {% if error %}<p class="error" role="alert">{{ error }}</p>{% endif %}
 

@@ -12,6 +12,16 @@
     <a href="{{ url_for('index') }}">Bảng giấy nhớ</a>
     <a href="{{ url_for('add', page=cur) if cur is defined else url_for('add') }}">Dán giấy nhớ</a>
     <a href="{{ url_for('stats') }}">Thống kê</a>
+    {% if current_user %}
+    <span>{{ current_user.username }}{% if current_user.is_admin %} (admin){% endif %}</span>
+    <form method="post" action="{{ url_for('logout') }}" class="logout-form">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+      <button type="submit">Đăng xuất</button>
+    </form>
+    {% else %}
+    <a href="/login">Đăng nhập</a>
+    <a href="/register">Đăng ký</a>
+    {% endif %}
   </nav>
   {% block before_frame %}{% endblock %}
   <div class="frame">

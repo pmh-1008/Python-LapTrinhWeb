@@ -8,10 +8,13 @@
          title="Nhấn để xem giấy này">
       <p class="msg">{{ e.message }}</p>
       <p class="who">– {{ e.name }}</p>
+      {% if can_delete(e) %}
       <form method="post" action="{{ url_for('delete', id=e.id, page=cur) }}"
-            onsubmit="return confirm('Xoá giấy nhớ của {{ e.name|e }}?');">
+            onsubmit="return confirm('Xóa giấy nhớ này?');">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
         <button>Xoá #{{ e.id }}</button>
       </form>
+      {% endif %}
     </div>
   {% else %}
     <p class="empty">Bảng còn trống. <a href="{{ url_for('add') }}">Dán tờ giấy đầu tiên</a>.</p>

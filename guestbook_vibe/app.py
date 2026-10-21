@@ -5,6 +5,11 @@ Flask + SQLite (+ data.json) + thống kê Matplotlib
 Người dùng tự chọn TRANG và tự nhấn lên bảng để chọn chỗ dán.
 Chạy:  python app.py   ->  http://127.0.0.1:5001
 """
+import os
+import secrets
+import hashlib
+import hmac
+import click
 import json
 import random
 import sqlite3
@@ -13,7 +18,8 @@ from pathlib import Path
 import matplotlib
 matplotlib.use("Agg")  # vẽ ra file, không cần cửa sổ
 import matplotlib.pyplot as plt
-from flask import Flask, g, redirect, render_template, request, url_for
+from flask import Flask, abort, g, redirect, render_template, request, session, url_for
+from werkzeug.security import generate_password_hash, check_password_hash
 
 BASE = Path(__file__).resolve().parent
 DB_FILE = BASE / "sticky.db"
@@ -23,7 +29,8 @@ CHART_FILE = BASE / "static" / "stats.png"
 # Kích thước (px) của bảng và giấy nhớ; phải khớp với style.css
 BOARD_W, BOARD_H, NOTE = 960, 600, 200
 
-app = Flask(__name__)
+app = Flask(__name__, root_path=str(BASE))
+app.config.update(SECRET_KEY=os.environ.get("GUESTBOOK_SECRET_KEY"), SESSION_COOKIE_NAME="guestbook_vibe_session", SESSION_COOKIE_HTTPONLY=True, SESSION_COOKIE_SAMESITE="Lax")
 
 
 # ---------- Database ----------
@@ -57,6 +64,15 @@ def init_db():
                       message TEXT NOT NULL,
                       page INTEGER, x REAL, y REAL, rot REAL, color INTEGER)""")
 
+    columns = {r[1] for r in db.execute("PRAGMA table_info(entries)")}
+    for column, kind in (("owner_user_id", "INTEGER"), ("owner_guest_hash", "TEXT")):
+        if column not in columns:
+            db.execute(f"ALTER TABLE entries ADD COLUMN {column} {kind}")
+    db.execute("CREATE TABLE IF NOT EXISTS users (id INTEGER PRIMARY KEY, username TEXT UNIQUE COLLATE NOCASE NOT NULL, password_hash TEXT NOT NULL, is_admin INTEGER NOT NULL DEFAULT 0)")
+    db.execute("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
+    db.execute("INSERT OR IGNORE INTO settings VALUES ('secret_key', ?)", (secrets.token_hex(32),))
+    if not app.secret_key:
+        app.secret_key = db.execute("SELECT value FROM settings WHERE key='secret_key'").fetchone()[0]
     if db.execute("SELECT COUNT(*) FROM entries").fetchone()[0] == 0 \
             and JSON_FILE.exists():
         lost = 0
@@ -90,6 +106,93 @@ def page_list(db):
 
 
 # ---------- Trang chủ ----------
+def guest_hash():
+    token = session.get("guest_token")
+    return hashlib.sha256(token.encode()).hexdigest() if token else None
+
+
+def can_delete(entry):
+    if g.user is not None and g.user["is_admin"]:
+        return True
+    if entry["owner_user_id"] is not None:
+        return g.user is not None and entry["owner_user_id"] == g.user["id"]
+    return bool(entry["owner_guest_hash"] and guest_hash()
+                and hmac.compare_digest(entry["owner_guest_hash"], guest_hash()))
+
+
+@app.before_request
+def load_identity():
+    g.user = get_db().execute("SELECT * FROM users WHERE id=?", (session.get("user_id"),)).fetchone()
+    session.permanent = True
+    if "guest_token" not in session:
+        session["guest_token"] = secrets.token_urlsafe(32)
+    if "csrf_token" not in session:
+        session["csrf_token"] = secrets.token_urlsafe(32)
+    if request.method == "POST" and not hmac.compare_digest(session["csrf_token"], request.form.get("csrf_token", "")):
+        abort(400, description="Phiên biểu mẫu không hợp lệ. Hãy tải lại trang.")
+
+
+@app.context_processor
+def auth_context():
+    return dict(current_user=g.user, can_delete=can_delete, csrf_token=session["csrf_token"])
+
+
+@app.route("/register", methods=["GET", "POST"])
+@app.route("/login", methods=["GET", "POST"])
+def auth():
+    registering = request.path == "/register"
+    error = None
+    username = request.form.get("username", "").strip()
+    if request.method == "POST":
+        password = request.form.get("password", "")
+        db = get_db()
+        user = db.execute("SELECT * FROM users WHERE username=?", (username,)).fetchone()
+        if registering:
+            if not 1 <= len(username) <= 30 or not 8 <= len(password) <= 128:
+                error = "Tên tài khoản từ 1–30 ký tự; mật khẩu từ 8–128 ký tự."
+            elif user:
+                error = "Tên tài khoản đã được sử dụng."
+            else:
+                try:
+                    db.execute("INSERT INTO users (username, password_hash) VALUES (?,?)", (username, generate_password_hash(password)))
+                    db.commit()
+                except sqlite3.IntegrityError:
+                    error = "Tên tài khoản đã được sử dụng."
+                else:
+                    user = db.execute("SELECT * FROM users WHERE username=?", (username,)).fetchone()
+        elif not user or not check_password_hash(user["password_hash"], password):
+            error = "Tên tài khoản hoặc mật khẩu không đúng."
+        if not error:
+            session["user_id"] = user["id"]
+            session["csrf_token"] = secrets.token_urlsafe(32)
+            return redirect(url_for("index"))
+    return render_template("auth.html", registering=registering, error=error, username=username), 400 if error else 200
+
+
+@app.post("/logout")
+def logout():
+    session.pop("user_id", None)
+    session["csrf_token"] = secrets.token_urlsafe(32)
+    return redirect(url_for("index"))
+
+
+@app.cli.command("create-admin")
+@click.argument("username")
+@click.password_option(confirmation_prompt=True)
+def create_admin(username, password):
+    """Create an administrator from the server terminal."""
+    if not 1 <= len(username.strip()) <= 30 or not 8 <= len(password) <= 128:
+        raise click.ClickException("Username: 1-30 characters; password: 8-128 characters.")
+    init_db()
+    db = get_db()
+    try:
+        db.execute("INSERT INTO users (username, password_hash, is_admin) VALUES (?,?,1)", (username.strip(), generate_password_hash(password)))
+        db.commit()
+    except sqlite3.IntegrityError:
+        raise click.ClickException("Username already exists.") from None
+    click.echo("Admin created.")
+
+
 @app.route("/")
 def index():
     db = get_db()
@@ -155,10 +258,10 @@ def add():
                                       and 0 <= y <= BOARD_H - NOTE):
         return fail("Hãy nhấn lên bảng để chọn chỗ dán.")
 
-    db.execute("INSERT INTO entries (name, message, page, x, y, rot, color) "
-               "VALUES (?,?,?,?,?,?,?)",
+    db.execute("INSERT INTO entries (name, message, page, x, y, rot, color, owner_user_id, owner_guest_hash) "
+               "VALUES (?,?,?,?,?,?,?,?,?)",
                (name, message, page, x, y, random.uniform(-5, 5),
-                random.randrange(6)))
+                random.randrange(6), g.user["id"] if g.user else None, None if g.user else guest_hash()))
     db.commit()
     save_json()
     # chuyển tới đúng trang chứa giấy vừa dán
@@ -168,6 +271,11 @@ def add():
 @app.route("/delete/<int:id>", methods=["POST"])
 def delete(id):
     db = get_db()
+    entry = db.execute("SELECT * FROM entries WHERE id=?", (id,)).fetchone()
+    if entry is None:
+        abort(404)
+    if not can_delete(entry):
+        abort(403)
     db.execute("DELETE FROM entries WHERE id = ?", (id,))
     db.commit()
     save_json()

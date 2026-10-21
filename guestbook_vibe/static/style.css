@@ -1,4 +1,6 @@
 :root { --chalk: #F2EFE6; --board: #2B4A3E; }
+.logout-form { margin: 0; }
+.logout-form button { font: inherit; cursor: pointer; background: transparent; border: 0; padding: 0; }
 * { box-sizing: border-box; }
 body { margin: 0; background: #E9E2D6; color: #2A2A2A;
        font-family: "Patrick Hand", "Comic Sans MS", cursive; font-size: 1.15rem; }
